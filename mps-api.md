@@ -4,8 +4,6 @@ How to construct HTTP requests to MATLAB Production Server and handle responses.
 
 ## Endpoint URL Pattern
 
-**IMPORTANT:** The MPS URL does NOT contain `/api/v4/`. The correct format is:
-
 ```
 POST http://<server>:<port>/<archiveName>/<functionName>
 ```
