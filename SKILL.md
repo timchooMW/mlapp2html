@@ -4,9 +4,18 @@ description: "Convert MATLAB Web Apps (.mlapp) to HTML/CSS/JavaScript front ends
 license: MIT
 ---
 
-# MATLAB Web App to MPS Migration Skill
+# MATLAB Web App → HTML + MPS Migration Skill
 
 This skill guides the conversion of MATLAB Web Apps (.mlapp) into decoupled architectures: an HTML/CSS/JS front end + MATLAB Production Server (MPS) back end.
+
+## Architecture Overview
+
+A MATLAB Web App bundles UI rendering and computational logic into a single artifact. This migration decouples them into:
+
+- **Front end** — HTML/CSS/JavaScript served from any HTTP server, giving full creative control over the UX.
+- **Back end** — The core MATLAB algorithm compiled into a `.ctf` archive and deployed to MPS, exposed as a RESTful API.
+
+This separation means the front end is lighter and more customizable, the MATLAB computation scales independently, and the two layers can be developed and maintained by different teams.
 
 ## Workflow Overview
 
@@ -21,7 +30,7 @@ The migration follows these phases. For each phase, detailed reference material 
 | 5. Compile | Package the function into a .ctf archive | `references/mps-deployment.md` |
 | 6. Deploy | Deploy .ctf to MPS and configure the server | `references/mps-deployment.md` |
 | 7. Connect | Wire the front end to the MPS API via fetch() | `references/mps-api.md` |
-| 8. Debug | Test with cURL/Postman, inspect result.lhs.mwdata[n] | `references/mps-api.md` |
+| 8. Debug | Test with cURL/Postman, inspect response lhs array | `references/mps-api.md` |
 | 9. Serve | Deploy front end via MPS static serving or external server | `references/mps-deployment.md` |
 
 ## How to Use This Skill
@@ -35,16 +44,17 @@ The migration follows these phases. For each phase, detailed reference material 
 
 ### When the user provides .mlapp callback code
 
-1. Read `references/callback-extraction.md` for the extraction pattern.
+1. Read `references/callback-extraction.md` for the extraction pattern, including the worked examples for complex callbacks (multiple plots, table output, shared state).
 2. Identify the three zones in the callback: UI Read, Algorithm, UI Write.
 3. Extract the Algorithm zone into a standalone MATLAB function with explicit inputs and outputs.
 4. Write the function with full documentation (inputs, outputs, types, sizes).
-5. Provide a test snippet the user can run from the MATLAB command window.
+5. Add input validation with `otherwise` clauses and `validateattributes` where appropriate.
+6. Provide a test snippet the user can run from the MATLAB command window.
 
 ### When the user wants to deploy to MPS
 
 1. Read `references/mps-deployment.md` for compilation and deployment steps.
-2. Help compile the function using `productionServerCompiler` or `mcc`.
+2. Help compile the function using `productionServerCompiler`, `compiler.build.productionServerArchive`, or `mcc`.
 3. Guide deployment to the `auto_deploy` folder.
 4. Help configure `main_config` if static file serving is needed.
 
@@ -77,34 +87,59 @@ POST http://<server>:<port>/<archiveName>/<functionName>
 
 Example: `POST http://localhost:9910/signalApp/generateSignal`
 
-Input payload:
+### Input Payload
 
 ```json
 {
-    "nargout": <number_of_outputs>,
+    "nargout": 5,
     "rhs": [
-        { "mwdata": [<value>], "mwsize": [<rows>, <cols>], "mwtype": "<type>" }
+        { "mwdata": [50],     "mwsize": [1, 1], "mwtype": "double" },
+        { "mwdata": [1.0],    "mwsize": [1, 1], "mwtype": "double" },
+        { "mwdata": [2],      "mwsize": [1, 1], "mwtype": "double" },
+        { "mwdata": ["Sine"], "mwsize": [1, 4], "mwtype": "char"   }
     ]
 }
 ```
 
-Response structure — output data is accessed via `result.lhs.mwdata[n]`:
+**Simplified form** — for simple cases where you don't need to specify size or type, you can send a flat rhs array:
+
+```json
+{"nargout": 1, "rhs": [308.0, 2.4, 3.5, "Step"]}
+```
+
+### Response Structure
+
+MPS returns an `lhs` array where each element corresponds to one output argument:
 
 ```json
 {
-    "lhs": {
-        "mwdata": [ <output_0>, <output_1>, ... ],
-        "mwsize": [<rows>, <cols>],
-        "mwtype": "<type>"
-    }
+    "lhs": [
+        { "mwdata": [0, 0.001, 0.002, ...], "mwsize": [1, 2001], "mwtype": "double" },
+        { "mwdata": [0, 0.309, 0.588, ...], "mwsize": [1, 2001], "mwtype": "double" },
+        { "mwdata": [0.7071],                "mwsize": [1, 1],    "mwtype": "double" }
+    ]
 }
 ```
 
-Key facts about the schema:
+Key facts:
+- `lhs[0]` is the first output argument, `lhs[1]` is the second, and so on
+- The actual data values are in `lhs[n].mwdata`
+- For scalar outputs, the value is `lhs[n].mwdata[0]`
+- `lhs[n].mwsize` gives MATLAB dimensions — a 1×1000 row vector is `[1, 1000]`
 - `rhs` elements are ordered to match the MATLAB function signature
 - `mwdata` is always an array, even for scalars: `[3.14]`
 - `mwsize` is `[rows, cols]` — a scalar is `[1, 1]`, a string "Sine" is `[1, 4]`
 - Matrices are stored column-major in `mwdata`
 - Common `mwtype` values: `"double"`, `"char"`, `"logical"`, `"single"`, `"int32"`, `"struct"`, `"cell"`
-- Response output data is in `result.lhs.mwdata[n]` — the nth element in the mwdata array
-- Example: for a function with 3 outputs, first output is `result.lhs.mwdata[0]`, second is `result.lhs.mwdata[1]`, etc.
+
+## Best Practices
+
+- **One function per computation** — keep MPS functions focused. Multiple functions can go in a single .ctf.
+- **Always use Postman or cURL first** — never debug the API through the front end. Isolate the layers.
+- **Watch the mwsize field** — a common mistake is wrong sizes, especially for strings. "Sine" has mwsize `[1, 4]`.
+- **Keep durations short during testing** — use small inputs while debugging to keep response payloads manageable.
+- **Downsample before plotting** — Chart.js degrades above ~5,000 points. Consider decimation in MATLAB or JS.
+- **Log the raw response** — always `console.log(result)` during development so you can inspect the full lhs structure.
+- **Version your archives** — use `signalApp_v2` during development so you can roll back.
+- **Handle errors gracefully** — check `response.ok` before parsing JSON. Show user-friendly errors and log details to console.
+- **Static serving is for prototyping** — MPS built-in static file serving is great for dev/test, but use a dedicated web server (Nginx, Apache) for production deployments.
