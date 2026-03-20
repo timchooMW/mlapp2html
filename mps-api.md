@@ -101,16 +101,16 @@ The response contains an `lhs` object. Output data is accessed via `result.lhs.m
 
 ### Extracting Output Data
 
-- `result.lhs.mwdata[0]` — first output argument
-- `result.lhs.mwdata[1]` — second output argument
-- `result.lhs.mwdata[n]` — nth output argument (zero-indexed)
+- `result.lhs[0].mwdata[0]` — first output argument
+- `result.lhs[0].mwdata[1]` — second output argument
+- `result.lhs[0].mwdata[n]` — nth output argument (zero-indexed)
 
 For a function like `generateSignal` with 5 outputs:
-- `result.lhs.mwdata[0]` — time vector (t)
-- `result.lhs.mwdata[1]` — signal data
-- `result.lhs.mwdata[2]` — frequency axis
-- `result.lhs.mwdata[3]` — spectrum data
-- `result.lhs.mwdata[4]` — RMS value (scalar)
+- `result.lhs[0].mwdata[0]` — time vector (t)
+- `result.lhs[0].mwdata[1]` — signal data
+- `result.lhs[0].mwdata[2]` — frequency axis
+- `result.lhs[0].mwdata[3]` — spectrum data
+- `result.lhs[0].mwdata[4]` — RMS value (scalar)
 
 ## Complete JavaScript fetch() Pattern
 
@@ -151,11 +151,11 @@ async function calculate() {
         ], 5);
 
         // Extract outputs from lhs.mwdata[n]
-        const t       = lhs.mwdata[0];   // Time vector
-        const signal  = lhs.mwdata[1];   // Signal data
-        const freqAx  = lhs.mwdata[2];   // Frequency axis
-        const spec    = lhs.mwdata[3];   // Spectrum
-        const rmsVal  = lhs.mwdata[4];   // RMS scalar
+        const t       = lhs[0].mwdata[0];   // Time vector
+        const signal  = lhs[0].mwdata[1];   // Signal data
+        const freqAx  = lhs[0].mwdata[2];   // Frequency axis
+        const spec    = lhs[0].mwdata[3];   // Spectrum
+        const rmsVal  = lhs[0].mwdata[4];   // RMS scalar
 
         updateChart(t, signal);
         document.getElementById('rmsDisplay').textContent = `RMS: ${rmsVal.toFixed(4)}`;
