@@ -134,7 +134,7 @@ After setting these, organize your front-end files:
 ```
 
 After restarting MPS, the app is available at:
-- Front end: `http://localhost:9910/index.html`
+- Front end: `http://localhost:9910/~files/index.html`
 - API: `http://localhost:9910/signalApp/generateSignal`
 
 ### CORS Configuration (if NOT using static file serving)
